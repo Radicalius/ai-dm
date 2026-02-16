@@ -1,33 +1,37 @@
 import requests
 from tools import ToolManager
 
-class GeminiFunctionResult:
-  def __init__(self, name, args):
-    self.name = name
-    self.args = args
+class GeminiMessagePart:
+  def __init__(self, text=None, functionCall=None, functionResponse=None, is_model=False):
+    self.is_model = is_model
+    self.text = text
+    self.functionCall = functionCall
+    self.functionResponse = functionResponse
+
+  def serialize(self):
+    return {
+      "text": self.text,
+      "functionCall": self.functionCall,
+      "functionResponse": self.functionResponse,
+    }
 
 class GeminiMessage:
 
-  def __init__(self, text="", function_res: GeminiFunctionResult=None, is_model=False):
-    self.text = text
-    self.is_model = is_model
-    self.function_res = function_res
+  def __init__(self, parts=[], text=None, functionResponses=None, role=""):
+    if text is not None:
+      self.parts=[GeminiMessagePart(text=text)]
+    elif functionResponses is not None:
+      self.parts=[GeminiMessagePart(functionResponse=i) for i in functionResponses]
+    else:
+      self.parts = parts
+
+    self.role = role
 
   def serialize(self):
-    if self.function_res:
-      return {
-        "parts": {
-          "functionResponse": self.function_res
-        },
-        "role": "function"
-      }
-    else:
-      return {
-        "parts": {
-          "text": self.text
-        },
-        "role": "model" if self.is_model else "user"
-      }
+    return {
+      "parts": [p.serialize() for p in self.parts],
+      "role": self.role
+    }
   
 class GeminiRequest:
 
@@ -69,15 +73,17 @@ class GeminiClient:
   
     assert "parts" in data and len(data["parts"]) > 0
 
-    if "text" in data["parts"][0]:
-      llm_text = data["parts"][0]["text"]
-      resp_message = GeminiMessage(text=llm_text, is_model=True)
-      self.messages.append(resp_message)
-    elif "functionCall" in data["parts"][0]:
-      function_call = data["parts"][0]["functionCall"]
-      tool_response = GeminiMessage(function_res=self.tool_manager.invoke(function_call["name"], function_call["args"]), is_model=False)
-      return self.send(tool_response)
-    else:
-      assert False, f"invalid llm response: {resp.text}"
+    parts = []
+    for part in data["parts"]:
+      if "text" in part:
+        llm_text = part["text"]
+        parts.append(GeminiMessagePart(text=llm_text))
+      elif "functionCall" in part:
+        function_call = part["functionCall"]
+        parts.append(GeminiMessagePart(functionCall=function_call))
+      else:
+        assert False, f"invalid llm response: {resp.text}"
     
-    return resp_message
+    next_message = GeminiMessage(parts, role="model")
+    self.messages.append(next_message)
+    return next_message

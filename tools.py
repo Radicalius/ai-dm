@@ -1,4 +1,4 @@
-import random, re
+import random, requests, os
 from typing import List
 
 class ToolParameter:
@@ -50,6 +50,17 @@ class ToolManager:
       "function_declarations": [tool.serialize() for tool in self.functions.values()]
     }
 
+tool_manager = ToolManager()
+
+def read_note(args):
+  if os.path.exists("notes/"+args["path"]):
+    return {
+      "contents": open("notes/"+args["path"]).read()
+    }
+  
+def write_note(args):
+  open("notes/"+args["path"], "w").write(args["contents"])
+
 def roll_dice(args):
   rolls = [random.randint(1, args["sides"]) for i in range(args["count"])]
   return {
@@ -57,7 +68,6 @@ def roll_dice(args):
     "sum":  sum(rolls)
   }
 
-tool_manager = ToolManager()
 tool_manager.register(Tool(
   roll_dice,
   "roll_dice",
@@ -65,5 +75,25 @@ tool_manager.register(Tool(
   [
     ToolParameter("sides", "INTEGER", "number of sides on each of the dice", True),
     ToolParameter("count", "INTEGER", "number of dice to roll", True),
+  ]
+))
+
+def get_monster_stats(args):
+  note = read_note({"path": f"monsters/{args['name']}"})
+  if note:
+    return note
+  
+  content = requests.get(f"https://www.aidedd.org/dnd/monstres.php?vo={args['name']}").text
+  write_note({"path": f"monsters/{args['name']}", "contents": content})
+  return {
+    "contents": content
+  }
+  
+tool_manager.register(Tool(
+  get_monster_stats,
+  "get_monster_stats",
+  "Returns monster stats for a specified monster",
+  [
+    ToolParameter("name", "STRING", "name of the monster to fetch stats for", True),
   ]
 ))
