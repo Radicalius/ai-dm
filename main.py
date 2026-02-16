@@ -6,9 +6,9 @@ from tools import tool_manager
 token = os.getenv("API_KEY")
 client = GeminiClient(token, tool_manager)
 
+resp = client.send(GeminiMessage(text="I would like to play a battle between 2 roughly evenly matched D&D monsters. Could you suggest the monsters? Then I'll play 1 and you'll play the other. Please evaluate all of the actions and dice rolls.", role="user"))
 
 while True:
-  resp = client.send(GeminiMessage(text="I'd like to play out a dnd battle between a chimera and a stone giant. I will play as the stone giant. Please handle all the die rolling and resolve all the actions.", role="user"))
   while True:
     tool_calls = []
     for part in resp.parts:
@@ -17,7 +17,7 @@ while True:
       elif part.functionCall is not None:
         name, args = part.functionCall["name"], part.functionCall["args"]
         tool_resp = tool_manager.invoke(name, args)
-        print(f"called tool {name}({json.dumps(args)})")
+        print(f"::: called tool {name}({json.dumps(args)[:128]}) -> {json.dumps(tool_resp)[:128]}")
         tool_calls.append(tool_resp)
 
     if not tool_calls:

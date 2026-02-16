@@ -1,5 +1,6 @@
 import random, requests, os
 from typing import List
+from bs4 import BeautifulSoup
 
 class ToolParameter:
   def __init__(self, name: str, type: str, desc: str, is_required=False):
@@ -52,15 +53,6 @@ class ToolManager:
 
 tool_manager = ToolManager()
 
-def read_note(args):
-  if os.path.exists("notes/"+args["path"]):
-    return {
-      "contents": open("notes/"+args["path"]).read()
-    }
-  
-def write_note(args):
-  open("notes/"+args["path"], "w").write(args["contents"])
-
 def roll_dice(args):
   rolls = [random.randint(1, args["sides"]) for i in range(args["count"])]
   return {
@@ -78,22 +70,107 @@ tool_manager.register(Tool(
   ]
 ))
 
-def get_monster_stats(args):
-  note = read_note({"path": f"monsters/{args['name']}"})
-  if note:
-    return note
-  
-  content = requests.get(f"https://www.aidedd.org/dnd/monstres.php?vo={args['name']}").text
-  write_note({"path": f"monsters/{args['name']}", "contents": content})
-  return {
-    "contents": content
-  }
+def read_note(args):
+  if os.path.exists("notes/"+args["path"]):
+    return {
+      "contents": open("notes/"+args["path"]).read()
+    }
   
 tool_manager.register(Tool(
-  get_monster_stats,
-  "get_monster_stats",
-  "Returns monster stats for a specified monster",
+  read_note,
+  "read_note",
+  """Notes are markdown files containing context useful for the dungeon master. 
+     This tool reads a note into context.""",
   [
-    ToolParameter("name", "STRING", "name of the monster to fetch stats for", True),
+    ToolParameter("path", "STRING", "path of the note to read", True),
+  ]
+))
+  
+def write_note(args):
+  open("notes/"+args["path"], "w").write(args["contents"])
+
+tool_manager.register(Tool(
+  write_note,
+  "write_note",
+  """Notes are markdown files containing context useful for the dungeon master. 
+     This tool creates a new note with the specified contents""",
+  [
+    ToolParameter("path", "STRING", "path of the note to read", True),
+  ]
+))
+
+def list_notes(args):
+  return {
+    "notes": os.listdir("notes/"+args["path_prefix"])
+  }
+
+tool_manager.register(Tool(
+  list_notes,
+  "list_notes",
+  """Notes are markdown files containing context useful for the dungeon master. 
+     This tool lists all notes at a specified path prefix""",
+  [
+    ToolParameter("path_prefix", "STRING", "note path prefix to list", True),
+  ]
+))
+
+def list_rulebook_entries(args):
+  url = ""
+  if args["type"] == "spells":
+    url = "https://www.aidedd.org/dnd-filters/spells-5e.php"
+  elif args["type"] == "monsters":
+    url = "https://www.aidedd.org/dnd-filters/monsters.php"
+  elif args["type"] == "invocations":
+    url = "https://www.aidedd.org/dnd-filters/eldritch-invocations.php"
+  elif args["type"] == "items":
+    url = "https://www.aidedd.org/dnd-filters/magic-items.php"
+  else:
+    return {
+      "error": "invalid type argument"
+    }
+
+  req = requests.get(url)
+  soup = BeautifulSoup(req.text, 'html.parser')
+  entries = []
+  for link in soup.select("#liste tr td.item a"):
+    name = link.getText()
+    href = link.get("href")
+    if "filter" in args and args["filter"].lower() not in name.lower():
+      continue
+
+    entries.append(
+      {
+        "name": name,
+        "link": href
+      }
+    )
+  
+  return {
+    "entries": entries
+  }
+
+tool_manager.register(Tool(
+  list_rulebook_entries,
+  "list_rulebook_entries",
+  "List D&D rulebook entries on monsters and spells",
+  [
+    ToolParameter("filter", "STRING", "filter only rulebook entries which contain this in the title", True),
+    ToolParameter("type", "STRING", "entry type (one of spells, monsters, invocations, items)", True)
+  ]
+))
+
+def get_rulebook_entry(args):
+  text = requests.get(args["link"]).text
+  only_text = BeautifulSoup(text, "html.parser").get_text()
+  return {
+    "contents": only_text.strip()
+  }
+
+tool_manager.register(Tool(
+  get_rulebook_entry,
+  "get_rulebook_entry",
+  "Get D&D rulebook entry from link url. Use in combination with `list_rulebook_entries` to search for entries",
+  [
+    ToolParameter("link", "STRING", "link to the rulebook entry", True),
   ]
 ))
