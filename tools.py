@@ -87,7 +87,10 @@ tool_manager.register(Tool(
 ))
   
 def write_note(args):
-  open("notes/"+args["path"], "w").write(args["contents"])
+  path = "notes/"+args["path"]
+  basedir = "/".join(path.split("/")[:-1])
+  os.makedirs(basedir, exist_ok=True)
+  open(path, "w").write(args["contents"])
 
 tool_manager.register(Tool(
   write_note,
@@ -95,7 +98,8 @@ tool_manager.register(Tool(
   """Notes are markdown files containing context useful for the dungeon master. 
      This tool creates a new note with the specified contents""",
   [
-    ToolParameter("path", "STRING", "path of the note to read", True),
+    ToolParameter("path", "STRING", "path of the note to write", True),
+    ToolParameter("contents", "STRING", "contents to write to the note", True)
   ]
 ))
 

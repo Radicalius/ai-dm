@@ -6,7 +6,12 @@ from tools import tool_manager
 token = os.getenv("API_KEY")
 client = GeminiClient(token, tool_manager)
 
-resp = client.send(GeminiMessage(text="I would like to play a battle between 2 roughly evenly matched D&D monsters. Could you suggest the monsters? Then I'll play 1 and you'll play the other. Please evaluate all of the actions and dice rolls.", role="user"))
+system_prompt = open("prompts/SYSTEM.md").read()
+create_prompt = open("prompts/CREATE.md").read()
+prompt = create_prompt.replace("{{ system_prompt }}", system_prompt)
+
+print(prompt)
+resp = client.send(GeminiMessage(text=prompt, role="user"))
 
 while True:
   while True:
